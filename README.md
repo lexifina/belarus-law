@@ -1,14 +1,23 @@
-# Belarus law: paused, not yet law
+# Беларусь: история законодательства в git
 
-This repository holds no law yet. It is a placeholder for the legislation of Belarus as git history (one commit per amending law, dated the day it took effect), following the same rules as the other lexifina law repositories.
+**Русский** · **[Read it in English](README.en.md)**
 
-It is paused because no permitted source gives past versions. The National Legal Internet Portal (pravo.by) has current text only, with a list of the amending acts but no dated editions and no per-article history notes. The dated editions are in ETALONLINE (etalonline.by), which denies access from our network (HTTP 403, "Доступ ограничен / Access Denied").
+Законодательство Республики Беларусь как история git: один файл на статью, один коммит на каждую редакцию в день её вступления в силу, автор коммита — акт, внёсший изменения (закон, декрет, указ, решение референдума). Часть [lexifina/global-law](https://github.com/lexifina/global-law) (`by/`).
 
-It will be built when there is a permitted route to dated editions.
-## Visualisations
+**Что здесь сейчас:** Конституция и кодексы Республики Беларусь со всеми редакциями, которые ЭТАЛОН-ONLINE показывает в открытом доступе, от исходного текста до действующей редакции. Кодексы добавляются по очереди; законы, декреты и указы — следующими. Подробнее: [STRUCTURE.md](STRUCTURE.md), [REPRODUCE.md](REPRODUCE.md).
 
-- [visualisations/](visualisations/): charts drawn from this repository. Not drawn yet.
+## Вопросы как команды git
 
-## How it is checked
+| Вопрос | Команда |
+| --- | --- |
+| Все изменения статьи 23 Конституции | `git log -p -- konstitutsiya/statya-023.md` |
+| Какой акт написал каждую строку статьи 1 ГК? | `git blame kodeksy/grazhdanskiy-kodeks/statya-0001.md` |
+| Редакции УК с датой вступления в силу | `git log --format="%(trailers:key=In-force,valueonly,separator=) %an" -- kodeksy/ugolovnyy-kodeks` |
 
-- [vulnerabilities/](vulnerabilities/): possible drafting mistakes in this law, found by global-law's detectors and checked by hand. Not run yet.
+## Даты и авторы
+
+Каждый коммит датирован полднем (Europe/Minsk) дня, с которого редакция действует по перечню редакций ЭТАЛОН-ONLINE; трейлеры `In-force:`, `In-force-basis:`, `Source:`. Исходный текст датирован днём принятия акта (дата его вступления в силу в перечне редакций не указана). Будущие редакции не включаются до дня вступления в силу.
+
+Текст — контрольный текст банка данных ЭТАЛОН, а не официальное опубликование. Не является юридической консультацией.
+
+Лицензия: [LICENSE](LICENSE) (работа Lexifina — CC0; нормативные правовые акты не являются объектами авторского права, ст. 8 Закона № 262-З).

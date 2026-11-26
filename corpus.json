@@ -1,0 +1,15 @@
+{
+  "corpus": "by/national/acts",
+  "name": "Belarusian law: the Constitution and the codes, every edition shown by ETALON-ONLINE",
+  "label": "Belarus",
+  "language": "ru",
+  "dates": {
+    "commit": "in-force",
+    "other_trailers": ["In-force-basis", "Source", "Kind", "Act-path", "Edition", "Amending-act"],
+    "time": "12:00 Europe/Minsk (UTC+3; UTC+2 in winter before 2011)"
+  },
+  "in_force_trailer": "In-force",
+  "has_future_branch": false,
+  "author": "the amending act named in ETALON-ONLINE's list of editions; the original text is authored by the act itself",
+  "sources": ["https://etalonline.by"]
+}

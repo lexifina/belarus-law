@@ -1,0 +1,18 @@
+Legal texts
+
+The texts of the Constitution and the codes of the Republic of Belarus in this repository are taken from ETALON-ONLINE
+(https://etalonline.by/), the legal information system of the National Centre of Legislation and Legal Research of the
+Republic of Belarus, from the editions it shows without registration. Official documents (normative legal acts) are not
+objects of copyright under the Law of the Republic of Belarus No. 262-З of 17 May 2011 "On Copyright and Related
+Rights", art. 8. Only that text is taken; the system's commentary, forms and other materials are not.
+
+Changes made by Lexifina: each edition was split into one Markdown file per article, one paragraph per line; spacing,
+quotes and dashes were normalised; headings, the table of contents, editorial notes and the signature were left out;
+superscript numbers are written with a hyphen. The wording of the law was not changed. The publisher does not endorse
+this repository.
+
+Lexifina's work
+
+Lexifina's own contributions (the arrangement of the history, the commit messages, the tables and the tools) are
+dedicated to the public domain under CC0 1.0 Universal:
+https://creativecommons.org/publicdomain/zero/1.0/legalcode

@@ -16,7 +16,7 @@ STATE = ROOT / 'state.json'
 UA = 'lexifina-watch/1.0 (+https://lexifina.com/watch; corpus@lexifina.com)'
 BASE = 'https://etalonline.by/document/'
 DELAY = 5.0
-PLACEHOLDER = 'aad9c2a602f430119d5d935f76221038a82c1f70'
+PLACEHOLDER = 'c8f814a255ce9862703115b58687a9476a599d9d'
 
 # (regnum, path, short)
 ACTS = [
@@ -122,7 +122,8 @@ def editions(page):
         if not val or state in ('future', 'full') or val in ('full', '-'):
             continue
         idx = int(attrs['id'].rsplit('_', 1)[1]) if 'id' in attrs and attrs['id'].rsplit('_', 1)[1].isdigit() else 0
-        out.append({'val': val, 'rn': attrs.get('rn'), 'state': state, 'idx': idx, 'label': strip(li)})
+        label = re.sub(r'\s*дата вступления в силу\s*-?\s*[\d.]+', '', strip(li)).strip()
+        out.append({'val': val, 'rn': attrs.get('rn'), 'state': state, 'idx': idx, 'label': label})
     out.sort(key=lambda e: e['idx'])
     return out
 
@@ -145,9 +146,10 @@ def adoption(title):
     return None
 
 
-AMEND = re.compile(r'внесенными (\w+) от (\d\d)\.(\d\d)\.(\d{4}) № ?([\w\-/]+)')
-KIND = {'Законом': ('law', 'Закон'), 'Декретом': ('decree', 'Декрет'), 'Указом': ('edict', 'Указ'),
-        'решением': ('referendum', 'Решение республиканского референдума')}
+AMEND = re.compile(r'внесенными (\w+)(?: \w+)? от (\d\d)\.(\d\d)\.(\d{4})(?: № ?([\w\-/]+))?')
+KIND = {'законом': ('law', 'Закон'), 'декретом': ('decree', 'Декрет'), 'указом': ('edict', 'Указ'),
+        'решением': ('referendum', 'Решение республиканского референдума'),
+        'постановлением': ('decree', 'Постановление')}
 
 
 def author_of(e, title, regnum):
@@ -159,8 +161,9 @@ def author_of(e, title, regnum):
     rn = (e['rn'] or '').lower()
     email = f"{re.sub(r'[^a-z0-9]', '', rn) or 'unknown'}@pravo.by.invalid"
     if m:
-        kind, word = KIND.get(m.group(1), ('law', m.group(1)))
-        return f'{word} от {m.group(2)}.{m.group(3)}.{m.group(4)} № {m.group(5)}', email, kind
+        kind, word = KIND.get(m.group(1).lower(), ('law', m.group(1)))
+        num = f' № {m.group(5)}' if m.group(5) else ''
+        return f'{word} от {m.group(2)}.{m.group(3)}.{m.group(4)}{num}', email, kind
     lab = re.sub(r'\s*\((недействующая|действующая) редакция\)|\s*\(вступил[аи]? в силу[^)]*\)', '', e['label'])
     lab = re.sub(r'^с изменениями \(дополнениями\),? внесенными\s*', '', lab).strip() or (e['rn'] or 'неизвестный акт')
     return lab[:200], email, 'law'
@@ -179,7 +182,8 @@ ART = re.compile(r'^(Статья|Артыкул) (\d+(?:\.\d+)*(?:-\d+)?)\s*\.?
 
 
 def text(inner):
-    s = re.sub(r'(\d)\s*<sup>\s*(\d+)\s*</sup>', r'\1-\2', inner)
+    s = re.sub(r'</?(?:span|b|i|font)\b[^>]*>', '', inner)
+    s = re.sub(r'(\d)\s*<sup[^>]*>\s*(\d+)\s*</sup>', r'\1-\2', s)
     s = re.sub(r'<br\s*/?>', ' ', s)
     s = html.unescape(re.sub(r'<[^>]+>', '', s)).replace('\xa0', ' ')
     s = s.replace('–', '-').replace('—', '-').replace('«', '"').replace('»', '"')

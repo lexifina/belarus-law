@@ -4,7 +4,7 @@ National Centre of Legislation and Legal Information), appended to lexifina/bela
 One request at a time, 5 s apart (etalonline.by robots.txt: Crawl-delay: 5). Backs off on 429/5xx, stops on 403.
 Usage: python -X utf8 runner.py   (run detached; writes ../progress.log)
 """
-import datetime as dt, gzip, html, json, os, re, subprocess, sys, time, urllib.error, urllib.request
+import concurrent.futures as cf, datetime as dt, gzip, threading, html, json, os, re, subprocess, sys, time, urllib.error, urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -15,7 +15,8 @@ LOG = ROOT / 'progress.log'
 STATE = ROOT / 'state.json'
 UA = 'lexifina-watch/1.0 (+https://lexifina.com/watch; corpus@lexifina.com)'
 BASE = 'https://etalonline.by/document/'
-DELAY = 5.0
+DELAY = 1.5  # Alan 11-26: robots Crawl-delay is advisory; 1.5 s gap, 2 in flight, back off on strain
+IN_FLIGHT = 2
 PLACEHOLDER = 'c8f814a255ce9862703115b58687a9476a599d9d'
 
 # (regnum, path, short)
@@ -102,26 +103,48 @@ class Blocked(Exception):
     pass
 
 
+pace_lock = threading.Lock()
+delay = [DELAY]  # current gap between request starts; grows on strain, decays back to DELAY
+CHALLENGE = re.compile('captcha|cf-chl|challenge-platform|Just a moment|Доступ ограничен'.encode(), re.I)
+
+
+def strain(factor, why):
+    with pace_lock:
+        delay[0] = min(delay[0] * factor, 30.0)
+    log(f'{why}; gap now {delay[0]:.1f} s')
+
+
 def get(url):
     backoff = [60, 180, 600, 1200]
     for attempt in range(len(backoff) + 1):
-        wait = last_req[0] + DELAY - time.time()
+        with pace_lock:
+            wait = last_req[0] + delay[0] - time.time()
+            last_req[0] = max(time.time(), last_req[0] + delay[0])
         if wait > 0:
             time.sleep(wait)
-        last_req[0] = time.time()
         req = urllib.request.Request(url, headers={'User-Agent': UA, 'Accept-Encoding': 'gzip',
                                                    'Accept-Language': 'ru'})
+        t0 = time.time()
         try:
             with urllib.request.urlopen(req, timeout=120) as r:
                 data = r.read()
                 if r.headers.get('Content-Encoding') == 'gzip':
                     data = gzip.decompress(data)
-                return data
+            took = time.time() - t0
+            if CHALLENGE.search(data[:20000]) and b'versionList' not in data and b'docResNum' not in data:
+                raise Blocked(f'challenge or access-denied page on {url}')
+            if took > 20:
+                strain(2, f'slow response {took:.0f} s')
+            elif delay[0] > DELAY:
+                with pace_lock:
+                    delay[0] = max(DELAY, delay[0] * 0.9)
+            return data
         except urllib.error.HTTPError as e:
             if e.code == 403:
                 raise Blocked(f'403 on {url}')
             if e.code in (429, 500, 502, 503, 504) and attempt < len(backoff):
-                log(f'HTTP {e.code} on {url}; backing off {backoff[attempt]} s')
+                strain(3, f'HTTP {e.code} on {url}')
+                log(f'backing off {backoff[attempt]} s')
                 time.sleep(backoff[attempt])
                 continue
             raise
@@ -434,6 +457,16 @@ def do_act(regnum, path, short, state, pad=None):
     cur_sel = re.search(r"<li\b[^>]*selected=\"selected\"[^>]*val='([^']*)'", page)
     cur_val = cur_sel.group(1) if cur_sel else None
     log(f'{short} {regnum}: {len(eds)} editions listed ({title[:90]})')
+    jobs = []
+    for e in eds:
+        if e['val'] == cur_val or nolist:
+            continue
+        key = 'original' if e['val'] == 'original' else f"{e['idx']:03d}-{e['val']}"
+        rn = e['rn'] if e['rn'] else 'undefined'
+        jobs.append((key, f"{BASE}?regnum={regnum}&q_id=&date={e['val']}&rnList={rn}&history=0"))
+    if jobs:  # two in flight; get() keeps the gap between request starts
+        with cf.ThreadPoolExecutor(IN_FLIGHT) as ex:
+            list(ex.map(lambda j: cached(regnum, j[0], j[1]), jobs))
     if pad is None:
         pad = 3 if path == 'konstitutsiya' else 4
     versions = []

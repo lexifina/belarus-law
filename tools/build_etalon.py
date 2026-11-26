@@ -15,8 +15,8 @@ LOG = ROOT / 'progress.log'
 STATE = ROOT / 'state.json'
 UA = 'lexifina-watch/1.0 (+https://lexifina.com/watch; corpus@lexifina.com)'
 BASE = 'https://etalonline.by/document/'
-DELAY = 1.5  # Alan 11-26: robots Crawl-delay is advisory; 1.5 s gap, 2 in flight, back off on strain
-IN_FLIGHT = 2
+DELAY = 5.0  # etalonline.by robots Crawl-delay: 5; the 1.5 s/2-in-flight trial on 11-26 was met with dropped connections
+IN_FLIGHT = 1
 PLACEHOLDER = 'c8f814a255ce9862703115b58687a9476a599d9d'
 
 # (regnum, path, short)
@@ -149,11 +149,12 @@ def get(url):
                 continue
             raise
         except (urllib.error.URLError, TimeoutError, ConnectionError, OSError) as e:
-            if attempt < len(backoff):
+            if attempt < 3:
                 log(f'network error {e!r} on {url}; backing off {backoff[attempt]} s')
                 time.sleep(backoff[attempt])
                 continue
-            raise
+            # a sustained timeout is the host refusing us: stop, no workaround
+            raise Blocked(f'host not answering after 4 tries (~14 min): {e!r} on {url}')
 
 
 def cached(regnum, key, url):

@@ -4,7 +4,7 @@
 
 The law of the Republic of Belarus as a git history: one file per article, one commit per edition (редакция) on the day it took effect, and the act that made the change (law, decree, edict or referendum decision) as the commit's author. Part of [lexifina/global-law](https://github.com/lexifina/global-law) (`by/`).
 
-**What is in it now:** the Constitution and the codes of Belarus, each with every edition ETALON-ONLINE shows openly, from the original text to the edition in force. Codes are being added one by one; laws, decrees and edicts come next. See [STRUCTURE.md](STRUCTURE.md) and [REPRODUCE.md](REPRODUCE.md).
+**What is in it now:** the Constitution and the codes of Belarus, each with every edition ETALON-ONLINE shows openly, from the original text to the edition in force. Codes are being added one by one, then the laws, decrees and presidential edicts in force (`zakony/`, `dekrety/`, `ukazy/`). See [STRUCTURE.md](STRUCTURE.md) and [REPRODUCE.md](REPRODUCE.md).
 
 ## Questions as git commands
 

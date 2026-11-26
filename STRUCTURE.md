@@ -8,7 +8,11 @@ Names are transliterated Russian, the language people search Belarusian law in.
   One folder per code: grazhdanskiy-kodeks, ugolovnyy-kodeks, ugolovno-protsessualnyy-kodeks, trudovoy-kodeks,
   kodeks-grazhdanskogo-sudoproizvodstva, kodeks-ob-administrativnykh-pravonarusheniyakh, nalogovyy-kodeks-obshchaya-chast,
   nalogovyy-kodeks-osobennaya-chast, kodeks-o-brake-i-seme, zhilishchnyy-kodeks and the others.
-- Later: `zakony/<year>/<regnum>/`, `dekrety/`, `ukazy/`.
+- `zakony/<year>/<adopted>-<number>/statya-NNN.md`: laws in force, e.g. `zakony/2008/2008-10-28-433-z/` (Закон от
+  28 октября 2008 г. № 433-З), with `preambula.md` where there is one.
+- `dekrety/<year>/<adopted>-<number>/`, `ukazy/<year>/<adopted>-<number>/`: decrees and edicts of the President in
+  force. An act with no articles is one file, `tekst.md`.
+- Order of the build: the Constitution, the codes, then laws, decrees and edicts in force as ETALON-ONLINE lists them.
 
 Each file: `# Статья N` on the first line, the article title on the second, then one paragraph per line.
 

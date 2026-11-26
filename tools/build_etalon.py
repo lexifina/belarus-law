@@ -51,6 +51,46 @@ ACTS = [
 
 last_req = [0.0]
 
+# (akt id in ETALON-ONLINE search, folder, word)
+LAW_KINDS = [(1, 'zakony', 'Закон'), (12, 'dekrety', 'Декрет'), (3, 'ukazy', 'Указ')]
+TR = dict(zip('абвгдеёжзийклмнопрстуфхцчшщъыьэюяіў',
+              ['a', 'b', 'v', 'g', 'd', 'e', 'e', 'zh', 'z', 'i', 'y', 'k', 'l', 'm', 'n', 'o', 'p', 'r', 's', 't',
+               'u', 'f', 'kh', 'ts', 'ch', 'sh', 'shch', '', 'y', '', 'e', 'yu', 'ya', 'i', 'u']))
+
+
+def translit(s):
+    s = ''.join(TR.get(c, c) for c in s.lower())
+    return re.sub(r'[^a-z0-9]+', '-', s).strip('-')
+
+
+def law_path(folder, word, title, regnum):
+    adopted = adoption(title)
+    num = re.search(r'№\s*([\w\-/]+)', title.split('|')[-1])
+    year = adopted[:4] if adopted else 'bez-daty'
+    slug = '-'.join(x for x in [adopted, translit(num.group(1)) if num else regnum] if x)
+    return f'{folder}/{year}/{slug}'
+
+
+def list_kind(akt, folder):
+    regnums, page, total = [], 1, None
+    while True:
+        url = (f'https://etalonline.by/search/?search_str=&adv_s=1&s=0&d=1&ps=100&akt%5B0%5D={akt}&organ=-1'
+               f'&archive=0&db%5B0%5D=0&db%5B1%5D=1&db%5B2%5D=2&PAGEN_1={page}')
+        s = cached('_lists', f'akt{akt}-p{page:04d}', url)
+        if total is None:
+            m = re.search(r'id="num-res-documents">\s*([\d\s]+)<', s)
+            total = int(re.sub(r'\D', '', m.group(1))) if m else 10 ** 6
+            log(f'{folder}: {total} found in the listing')
+        found = re.findall(r'class="docResNum" data-regnum="([a-z0-9]+)"', s)
+        if not found:
+            break
+        new = [r for r in found if r not in regnums]
+        regnums += new
+        if not new or len(regnums) >= total:
+            break
+        page += 1
+    return regnums
+
 
 def log(msg):
     line = f"{dt.datetime.now().strftime('%Y-%m-%d %H:%M:%S')} {msg}\n"
@@ -243,6 +283,22 @@ def parse(page, pad, stats):
                 stats['other_class'] = stats.get('other_class', 0) + 1
             cur['lines'].append(t)
     files = {}
+    if not units:
+        # acts without articles (decrees, edicts): the whole text is one file
+        lines = []
+        for cls, raw in PARA.findall(body):
+            cls = cls.split()[0] if cls.split() else ''
+            t = text(raw)
+            if cls in ('newncpi0', 'newncpi2') and lines and (t.startswith('Президент') or t.startswith('Прэзідэнт')):
+                break
+            if not t or cls in SKIP or cls in HEAD or re.match(r'^\d{1,2} \w+ \d{4} г\.', t):
+                continue
+            if cls in BODY or cls.startswith('newncpi') or cls in ('article', 'articleintext', 'preamble'):
+                lines.append(t)
+        if lines:
+            stats['whole_text'] = 1
+            return {'tekst.md': '# Текст\n' + ''.join(l + '\n' for l in lines)}
+        return {}
     if pre:
         files['preambula.md'] = '# Преамбула\n' + ''.join(l + '\n' for l in pre)
     for k, u in units.items():
@@ -366,22 +422,24 @@ def docs_commit(state):
 
 # ---------------------------------------------------------------- main
 
-def do_act(regnum, path, short, state):
+def do_act(regnum, path, short, state, pad=None):
     url0 = f'{BASE}?regnum={regnum}'
     page = cached(regnum, 'current', url0)
     eds = editions(page)
     title = doc_title(page)
-    if eds is None:
-        log(f'{short} {regnum}: no edition list on the page; current text only')
-        eds = []
+    nolist = not eds
+    if nolist:
+        eds = [{'val': 'original', 'rn': None, 'state': 'original', 'idx': 0,
+                'label': 'Текст (перечень редакций не приводится)'}]
     cur_sel = re.search(r"<li\b[^>]*selected=\"selected\"[^>]*val='([^']*)'", page)
     cur_val = cur_sel.group(1) if cur_sel else None
     log(f'{short} {regnum}: {len(eds)} editions listed ({title[:90]})')
-    pad = 3 if path == 'konstitutsiya' else 4
+    if pad is None:
+        pad = 3 if path == 'konstitutsiya' else 4
     versions = []
     for e in eds:
         key = 'original' if e['val'] == 'original' else f"{e['idx']:03d}-{e['val']}"
-        if e['val'] == cur_val:
+        if e['val'] == cur_val or nolist:
             pg = page
         else:
             rn = e['rn'] if e['rn'] else 'undefined'
@@ -478,6 +536,39 @@ def main():
                                                 'editions': len(versions),
                                                 'from': versions[0][0]['val'] if versions else None}
         save(state)
+        push(state)
+        last_push = time.time()
+    for akt, folder, word in LAW_KINDS:
+        try:
+            regnums = list_kind(akt, folder)
+        except Blocked as b:
+            log(f'BLOCKED: {b}; stopping (no retry round the block)')
+            push(state)
+            return
+        log(f'{folder}: {len(regnums)} acts in force listed')
+        for regnum in regnums:
+            if regnum in state['done']:
+                continue
+            try:
+                title, versions = do_act(regnum, folder, word, state, pad=3)
+                path = law_path(folder, word, title, regnum)
+                num = re.search(r'№\s*([\w\-/]+)', title.split('|')[-1])
+                short = f"{word} № {num.group(1)}" if num else f'{word} {regnum}'
+                build_act(regnum, path, short, title, versions, state)
+            except Blocked as b:
+                log(f'BLOCKED: {b}; stopping (no retry round the block)')
+                push(state)
+                return
+            except Exception as ex:
+                log(f'{regnum}: ERROR {ex!r}; act skipped')
+                continue
+            state['done'].append(regnum)
+            state.setdefault('acts', {})[regnum] = {'path': path, 'short': short, 'title': title,
+                                                    'editions': len(versions)}
+            save(state)
+            if time.time() - last_push > 900:
+                push(state)
+                last_push = time.time()
         push(state)
         last_push = time.time()
     log('runner done')
